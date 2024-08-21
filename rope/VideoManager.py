@@ -3,6 +3,7 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageTk
 import threading
+import queue
 import time
 import numpy as np
 from skimage import transform as trans
@@ -60,8 +61,8 @@ class VideoManager():
         self.frame_timer = 0.0      # used to set the framerate during playing
 
         # Queues
-        self.action_q = []                  # queue for sending to the coordinator
-        self.frame_q = []                   # queue for frames that are ready for coordinator
+        self.action_q = []                      # queue for sending to the coordinator
+        self.frame_q = queue.Queue()  # queue for frames that are ready for coordinator
 
         self.r_frame_q = []                 # queue for frames that are requested by the GUI
         self.read_video_frame_q = []
@@ -198,7 +199,7 @@ class VideoManager():
             self.play = False
             self.current_frame = 0
             self.frame_timer = time.time()
-            self.frame_q = []
+            self.frame_q.clear()
             self.r_frame_q = []
             self.found_faces = []
             self.add_action("set_slider_length",self.video_frame_total-1)
@@ -224,13 +225,13 @@ class VideoManager():
             self.capture.release()
         self.is_video_loaded = False
         self.play = False
-        self.frame_q = []
+        self.frame_q.clear()
         self.r_frame_q = []
         self.found_faces = []
         self.image = cv2.imread(file) # BGR
         self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB) # RGB
         temp = [self.image, False]
-        self.frame_q.append(temp)
+        self.frame_q.put(temp)
 
         # Face Landmarks
         if self.face_landmarks:
@@ -255,14 +256,6 @@ class VideoManager():
         self.action_q.pop(0)
         return action
 
-    ## Queues for the Coordinator
-    def get_frame(self):
-        frame = self.frame_q[0]
-        self.frame_q.pop(0)
-        return frame
-
-    def get_frame_length(self):
-        return len(self.frame_q)
 
     def get_requested_frame(self):
         frame = self.r_frame_q[0]
@@ -472,7 +465,7 @@ class VideoManager():
             if index != -1:
                 if self.process_qs[index]['Status'] == 'finished':
                     temp = [self.process_qs[index]['ProcessedFrame'], self.process_qs[index]['FrameNumber']]
-                    self.frame_q.append(temp)
+                    self.frame_q.put(temp)
 
                     # Report fps, other data
                     self.fps_average.append(1.0/time_diff)
@@ -519,7 +512,7 @@ class VideoManager():
                             self.sp.write(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
 
                         temp = [image, self.process_qs[index]['FrameNumber']]
-                        self.frame_q.append(temp)
+                        self.frame_q.put(temp)
 
                         # Close video and process
                         if self.process_qs[index]['FrameNumber'] >= self.video_frame_total-1 or self.process_qs[index]['FrameNumber'] == self.stop_marker or self.play == False:

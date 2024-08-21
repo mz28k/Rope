@@ -1,6 +1,7 @@
 # #!/usr/bin/env python3
 import threading
 import time
+import queue
 import torch
 from torchvision import transforms
 
@@ -29,12 +30,14 @@ def quit_app():
 def coordinator_gui():
     global gui, vm, frame, r_frame, busy
 
-    if vm.get_frame_length() > 0:
-        frame.append(vm.get_frame())
+    f = None
+    try:
+        f = vm.frame_q.get(True, 0.01)
+    except queue.Empty:
+        pass
 
-    if len(frame) > 0:
-        gui.set_image(frame[0], False)
-        frame.pop(0)
+    if f is not None:
+        gui.set_image(f[0], False)
 
     if vm.get_requested_frame_length() > 0:
         r_frame.append(vm.get_requested_frame())
